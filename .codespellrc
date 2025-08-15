@@ -1,0 +1,5 @@
+[codespell]
+write = true
+ignore-words-list = Pyrenophora, rbert, Sclerotinia, SDHI,
+skip = *.lock, *.toml
+quiet-level = 2

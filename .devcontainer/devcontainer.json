@@ -1,0 +1,29 @@
+{
+    "name": "Python 3",
+    "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bullseye",
+    "features": {
+        "ghcr.io/devcontainers/features/github-cli:1": {}
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "editorconfig.editorconfig",
+                "github.vscode-pull-request-github",
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ms-vsliveshare.vsliveshare",
+                "charliermarsh.ruff",
+                "tamasfe.even-better-toml",
+                "GitHub.copilot",
+                "exodiusstudios.comment-anchors"
+            ]
+        }
+    },
+    "onCreateCommand": [
+        "pre-commit install-hooks"
+    ],
+    "postStartCommand": [
+        "./.devcontainer/postCreateCommand.sh"
+    ]
+
+}
