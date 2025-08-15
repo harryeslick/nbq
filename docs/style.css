@@ -1,0 +1,45 @@
+/* Minimal custom styles for nbq docs */
+:root {
+  --nbq-accent: #4f46e5;
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  scroll-margin-top: 1.5rem;
+}
+
+.md-typeset a {
+  text-decoration: none;
+}
+
+.md-typeset a:hover {
+  text-decoration: underline;
+}
+
+.md-typeset code {
+  background: rgba(0,0,0,0.04);
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+}
+
+.md-typeset pre code {
+  background: transparent;
+}
+
+.md-typeset .admonition {
+  border-left: 0.25rem solid var(--nbq-accent);
+}
+
+.md-nav__link--active {
+  color: var(--nbq-accent);
+}
+
+/* Table tweaks for status examples */
+.md-typeset table {
+  border-collapse: collapse;
+}
+.md-typeset table th,
+.md-typeset table td {
+  padding: 0.5rem 0.75rem;
+}

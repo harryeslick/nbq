@@ -1,4 +1,4 @@
-site_name: nbq
+site_name: nbqueue
 site_description: A simple queue for executing long-running .ipynb notebooks in sequence
 site_author: Harry Eslick
 # repo_url: https://github.com/nbq
@@ -56,10 +56,11 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Usage: usage.md
   - Changelog: CHANGELOG.md
   # - Report Issues: https://github.com/nbq/issues
   - API Reference:
-        - Hello module: api_docs/hello_world.md
+        - nbqueue API: api_docs/nbqueue.md
 
   - Examples:
     - Notebooks:

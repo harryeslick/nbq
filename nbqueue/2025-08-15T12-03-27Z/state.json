@@ -1,0 +1,39 @@
+{
+  "queue": [],
+  "history": [
+    {
+      "id": "2025-08-15T12-03-27Z",
+      "original_path": "/Users/hfsi/Developer/nbq/examples/demo.py",
+      "queue_path": "/Users/hfsi/Developer/nbq/nbqueue/2025-08-15T12-03-27Z/queue/demo_tester.py",
+      "added_at": "2025-08-15T12:03:27Z",
+      "started_at": "2025-08-15T12:03:27Z",
+      "ended_at": "2025-08-15T12:03:32Z",
+      "status": "done",
+      "tag": "tester",
+      "success": true,
+      "returncode": 0,
+      "run_dir": "/Users/hfsi/Developer/nbq/nbqueue/2025-08-15T12-03-27Z/output/1755259407582-b0a6",
+      "pid": 16255,
+      "pgid": 16255,
+      "error": null
+    },
+    {
+      "id": "2025-08-15T13-09-52Z",
+      "original_path": "/Users/hfsi/Developer/nbq/examples/demo.py",
+      "queue_path": "/Users/hfsi/Developer/nbq/nbqueue/2025-08-15T12-03-27Z/queue/demo_docs.py",
+      "added_at": "2025-08-15T13:09:52Z",
+      "started_at": "2025-08-15T13:10:00Z",
+      "ended_at": "2025-08-15T13:10:03Z",
+      "status": "done",
+      "tag": "docs",
+      "success": true,
+      "returncode": 0,
+      "run_dir": "/Users/hfsi/Developer/nbq/nbqueue/2025-08-15T12-03-27Z/output/1755263400621-c1bd",
+      "pid": 85959,
+      "pgid": 85959,
+      "error": null
+    }
+  ],
+  "current": null,
+  "stop_requested": false
+}
