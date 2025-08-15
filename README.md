@@ -1,30 +1,95 @@
-# nbq
+# nbqueue (CLI: nbq)
 
-A simple queue for executing long-running .ipynb notebooks in sequence
+Run Jupyter notebooks one-by-one with a simple queue and clear results.
 
-## Project Organization
+`nbqueue` gives you a tiny, reliable queue. You add notebooks (or percent-formatted .py scripts), and a single worker executes them in order.
 
-- **[Copier](https://copier.readthedocs.io/)** - For templating and project generation
-- **[uv](https://github.com/astral-sh/uv)** - For package and dependency management
-- **[MkDocs](https://www.mkdocs.org/)** - For documentation with GitHub Pages deployment
-- **[pytest](https://docs.pytest.org/)** - For testing with code coverage via pytest-cov
-- **[pre-commit](https://pre-commit.com/)** - For enforcing code quality with ruff and codespell
+## Why this exists (in plain English)
 
+- Run complex scripts and notebooks sequentially in a queue.
+- make changes and iteratively, add items to the queue while you wait for processing to complete.
+- scripts in jupytext format are converted to .ipynb. output cells are saved to record results along side code cells. 
 
-## Development Setup
+## What you get
 
-### Local Development
+- Single-worker execution (no overlapping runs)
+- Durable on-disk state and per-run artifacts
+- Works with .ipynb and Jupytext percent scripts (.py)
+- Easy control: add, status, run, clear, cancel, kill, abort
+- Friendly CLI with Rich + Typer
+
+## Quickstart (with uv)
+
+Requires Python 3.9+ and [uv](https://github.com/astral-sh/uv)
 
 ```bash
-# Setup virtual environment and install dependencies
+# Install dependencies and build the local package
 uv sync
 
-# Install pre-commit hooks
-pre-commit install-hooks
+# Enqueue a notebook or percent-formatted script
+uv run nbq add examples/demo.py
+uv run nbq add examples/demo.ipynb
+
+# Process one item and exit
+uv run nbq run --once
+
+# See what's going on
+uv run nbq status
+
+# Keep a worker running and handle new items as they arrive
+uv run nbq run --watch
 ```
 
-### Using VS Code DevContainer
+Control the worker:
+```bash
+# Finish current run then stop
+uv run nbq cancel
 
-1. Open project folder in VS Code
-2. Install the "Remote - Containers" extension
-3. Click "Reopen in Container" or run the "Remote-Containers: Reopen in Container" command
+# Try graceful stop (SIGTERM), then force (SIGKILL) after grace seconds
+uv run nbq kill --grace 10
+
+# Kill current, mark canceled, clear queue (default), and stop
+uv run nbq abort
+```
+
+Useful flags:
+```bash
+# Exit if no work arrives within 60s
+uv run nbq run --timeout 60
+
+# Ensure exactly one item is processed
+uv run nbq run --once
+```
+
+## What happens under the hood
+
+- .py percent scripts → converted to .ipynb at runtime (Jupytext)
+- Execution → Papermill (kernel default: python3; override with NBQ_DEFAULT_KERNEL)
+- State is durable JSON on disk, updated atomically
+- One worker at a time enforced via a PID lock
+
+## Where files go (default NBQ_HOME=./nbqueue)
+
+- nbqueue/<session-id>/state.json — queue state (queue, history, current, stop flag)
+- nbqueue/<session-id>/lock.pid — single-worker lock
+- nbqueue/<session-id>/output/<run-id>/
+  - source.ext — original snapshot (.py or .ipynb)
+  - input.ipynb — pre-execution
+  - executed.ipynb — post-execution
+  - run.log — stdout/stderr
+  - status.json — pid, times, result, etc.
+- nbqueue/<session-id>/latest_run → symlink to last run
+
+## Configuration
+
+- NBQ_HOME — base directory (default: ./nbqueue)
+- NBQ_DEFAULT_KERNEL — Jupyter kernel (default: python3)
+
+CLI command stays `nbq`; package name is `nbqueue`.
+
+## Learn more
+
+Build and open the docs locally:
+```bash
+mkdocs serve
+```
