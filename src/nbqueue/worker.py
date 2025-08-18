@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import os
+import signal
 import time
 from pathlib import Path
 from typing import Optional
 
-from .exec import prepare_run, launch_papermill, write_status_json, update_latest_symlink
-from .ps import acquire_lock, release_lock
+from .exec import launch_papermill, prepare_run, update_latest_symlink, write_status_json
+from .ps import acquire_lock, kill_with_grace, release_lock
 from .state import State, get_or_create_session, load_state, save_state
 from .utils import iso_now
 
@@ -33,25 +34,64 @@ def run_worker(timeout: Optional[int] = None, watch: bool = False, once: bool = 
     """
     session = get_or_create_session()
 
+    # Install signal handlers so killing the worker stops children and clears the queue
+    def _handle_terminate(_signum, _frame):  # type: ignore[unused-argument]
+        try:
+            st = load_state(session)
+            cur = st.current or {}
+            pgid = cur.get("pgid")
+            pid = cur.get("pid")
+            if pgid is None and pid is not None:
+                try:
+                    pgid = os.getpgid(int(pid))
+                except (ProcessLookupError, PermissionError, OSError):
+                    pgid = None
+            if pgid is not None:
+                try:
+                    kill_with_grace(int(pgid), grace_seconds=2.0)
+                except OSError:
+                    pass
+                # Mark as canceled and finalize best-effort
+                cur["status"] = "canceled"
+                cur["error"] = cur.get("error") or "worker terminated"
+                cur["ended_at"] = iso_now()
+                st.current = cur
+                try:
+                    run_dir = Path(cur["run_dir"]) if cur.get("run_dir") else None
+                    if run_dir:
+                        write_status_json(run_dir, success=False, returncode=-1, error=cur["error"])
+                except OSError:
+                    pass
+            # Empty the queue regardless
+            st.queue = []
+            save_state(session, st)
+        finally:
+            release_lock(session)
+            os._exit(0)
+
+    signal.signal(signal.SIGTERM, _handle_terminate)
+    signal.signal(signal.SIGINT, _handle_terminate)
+
     if not acquire_lock(session):
         # Another worker is active; exit gracefully
         return 0
 
+    exit_requested = False
     try:
-        while True:
+        while not exit_requested:
             st = load_state(session)
 
             if st.stop_requested:
                 # Graceful stop requested
-                return 0
+                break
 
             item = _pop_next_item(st)
             if item is None:
                 save_state(session, st)
                 if once:
-                    return 0
+                    break
                 if not watch:
-                    return 0
+                    break
                 time.sleep(poll_interval)
                 continue
 
@@ -60,7 +100,8 @@ def run_worker(timeout: Optional[int] = None, watch: bool = False, once: bool = 
             item["started_at"] = iso_now()
 
             try:
-                run = prepare_run(Path(item["queue_path"]), session.output_dir)
+                # Create a new run directly under the session root
+                run = prepare_run(Path(item["queue_path"]), session.root)
                 item["run_dir"] = str(run.run_dir)
                 st.current = item
                 save_state(session, st)
@@ -75,7 +116,7 @@ def run_worker(timeout: Optional[int] = None, watch: bool = False, once: bool = 
                 item["pid"] = proc.pid
                 try:
                     item["pgid"] = os.getpgid(proc.pid)
-                except Exception:
+                except (ProcessLookupError, PermissionError, OSError):
                     item["pgid"] = None
 
                 st.current = item
@@ -97,7 +138,7 @@ def run_worker(timeout: Optional[int] = None, watch: bool = False, once: bool = 
                 write_status_json(run.run_dir, success=bool(item["success"]), returncode=int(returncode), error=item.get("error"))
                 update_latest_symlink(session.root, run.run_dir)
 
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError) as e:
                 # Failure before or during launch; best-effort metadata
                 item["status"] = "failed"
                 item["success"] = False
@@ -109,7 +150,7 @@ def run_worker(timeout: Optional[int] = None, watch: bool = False, once: bool = 
                     run_dir = Path(item["run_dir"]) if item.get("run_dir") else None
                     if run_dir:
                         write_status_json(run_dir, success=False, returncode=-1, error=str(e))
-                except Exception:
+                except OSError:
                     pass
             finally:
                 # Append to history and clear current
@@ -119,7 +160,8 @@ def run_worker(timeout: Optional[int] = None, watch: bool = False, once: bool = 
                 save_state(session, st_final)
 
                 if once:
-                    return 0
+                    exit_requested = True
 
     finally:
         release_lock(session)
+    return 0

@@ -8,10 +8,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-import nbformat  # type: ignore
 import jupytext  # type: ignore
+import nbformat  # type: ignore
 
-from .utils import ensure_dir, run_id, iso_now, atomic_write_json
+from .utils import atomic_write_json, ensure_dir, iso_now, run_id
+
 
 @dataclass
 class PreparedRun:
@@ -21,13 +22,14 @@ class PreparedRun:
     executed_ipynb: Path     # output executed notebook path
     log_path: Path           # stdout/stderr stream
 
-def prepare_run(queued_file: Path, session_output_dir: Path) -> PreparedRun:
+def prepare_run(queued_file: Path, session_root_dir: Path) -> PreparedRun:
     """
     Create a new run directory, copy queued file to 'source.ext',
     and (if needed) convert .py to .ipynb for execution.
     """
     rid = run_id()
-    run_dir = session_output_dir / rid
+    # Place runs directly under the session root for a flatter structure
+    run_dir = session_root_dir / rid
     ensure_dir(run_dir)
 
     queued_file = queued_file.resolve()
@@ -96,5 +98,5 @@ def update_latest_symlink(session_root: Path, run_dir: Path) -> None:
         if link.exists() or link.is_symlink():
             link.unlink()
         link.symlink_to(run_dir, target_is_directory=True)
-    except Exception:
+    except OSError:
         pass

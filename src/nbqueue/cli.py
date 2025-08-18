@@ -11,19 +11,22 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from .utils import elapsed_since, snapshot_source_to
+from .ps import kill_with_grace
 from .state import (
     QueueItem,
     Session,
     active_session,
     append_queue,
-    clear_queue as clear_queue_state,
     get_or_create_session,
     latest_session,
     load_state,
+    read_lock_pid,
     save_state,
 )
-from .ps import kill_with_grace
+from .state import (
+    clear_queue as clear_queue_state,
+)
+from .utils import elapsed_since, snapshot_source_to
 from .worker import run_worker
 
 app = typer.Typer(no_args_is_help=True)
@@ -44,7 +47,7 @@ def _ensure_worker_running() -> None:
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
-    except Exception:
+    except OSError:
         # Best-effort; surface no exception to keep add working
         pass
 
@@ -86,11 +89,13 @@ def cmd_status(json_out: bool = typer.Option(False, "--json", help="Output machi
         raise typer.Exit(code=0)
 
     st = load_state(sess)
+    worker_pid = read_lock_pid(sess)
     if json_out:
-        console.print_json(json.dumps({"session": str(sess.root), **st.to_dict()}))
+        console.print_json(json.dumps({"session": str(sess.root), "worker_pid": worker_pid, **st.to_dict()}))
         return
 
-    table = Table(title=f"nbq status – session {sess.root.name}", show_lines=False)
+    subtitle = f"worker pid: {worker_pid}" if worker_pid else "no worker running"
+    table = Table(title=f"nbq status – session {sess.root.name}", caption=subtitle, show_lines=False)
     table.add_column("ID", no_wrap=True)
     table.add_column("Notebook", no_wrap=True)
     table.add_column("Tag", no_wrap=True)
@@ -126,6 +131,13 @@ def cmd_run(
     """
     Run worker loop to process queued items.
     """
+    # If a worker is already running, do nothing and inform the user.
+    sess_running = active_session()
+    if sess_running:
+        pid = read_lock_pid(sess_running)
+        if pid:
+            console.print(f"[yellow]A worker is already running (pid {pid}). No action taken.[/yellow]")
+            raise typer.Exit(code=0)
     code = run_worker(timeout=timeout, watch=watch, once=once)
     raise typer.Exit(code=code)
 
@@ -134,6 +146,9 @@ def cmd_clear(yes: bool = typer.Option(..., "--yes", help="Confirm clearing the 
     """
     Clear pending queue (does not touch current run or history).
     """
+    if not yes:
+        console.print("[yellow]Refusing to clear queue without --yes.[/yellow]")
+        raise typer.Exit(code=1)
     sess = _session_for_reporting()
     if not sess:
         console.print("[dim]No sessions found.[/dim]")
@@ -171,7 +186,7 @@ def cmd_kill(grace: float = typer.Option(5.0, "--grace", help="Seconds to wait b
     if pgid is None and pid is not None:
         try:
             pgid = os.getpgid(int(pid))
-        except Exception:
+        except (ProcessLookupError, PermissionError, OSError):
             pgid = None
     if pgid is None:
         console.print("[yellow]No running process to kill.[/yellow]")
@@ -184,8 +199,10 @@ def cmd_kill(grace: float = typer.Option(5.0, "--grace", help="Seconds to wait b
         cur["status"] = "canceled"
         cur["error"] = cur.get("error") or "killed by user"
         st.current = cur
-        save_state(sess, st)
-        console.print("[red]Kill signal sent. Marked current run as canceled.[/red]")
+    # Also clear any pending items to align with expected behavior
+    st.queue = []
+    save_state(sess, st)
+    console.print("[red]Kill signal sent. Marked current run as canceled and cleared pending queue.[/red]")
 
 @app.command("abort")
 def cmd_abort(
@@ -207,12 +224,12 @@ def cmd_abort(
     if pgid is None and pid is not None:
         try:
             pgid = os.getpgid(int(pid))
-        except Exception:
+        except (ProcessLookupError, PermissionError, OSError):
             pgid = None
     if pgid is not None:
         try:
             kill_with_grace(int(pgid), grace_seconds=float(grace))
-        except Exception:
+        except OSError:
             pass
         cur["status"] = "canceled"
         cur["error"] = cur.get("error") or "killed by user"

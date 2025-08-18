@@ -9,10 +9,12 @@ This page shows how to use nbq with uv and demonstrates the main functionality.
 
 ## CLI overview
 
-- bash
-  uv run nbq --help
+```bash
+uv run nbq --help
+```
 
 Commands:
+
 - add: Enqueue one or more `.ipynb` or `.py` files (optional tag, optional start worker)
 - status: Show running and queued items (table or JSON)
 - run: Process queued items (once or watch mode)
@@ -24,32 +26,50 @@ Commands:
 ## Basic workflow
 
 - Enqueue files:
-  - bash
-    uv run nbq add --tag demo examples/demo.py
-    uv run nbq add --tag demo examples/demo.ipynb
+
+  ```bash
+  uv run nbq add --tag demo examples/demo.py
+  uv run nbq add --tag demo examples/demo.ipynb
+  ```
 
 - Run a single item and exit:
-  - bash
-    uv run nbq run --once
+
+  ```bash
+  uv run nbq run --once
+  ```
 
 - Keep running and pick up new items:
-  - bash
-    uv run nbq run --watch
 
-- Status:
-  - bash
-    uv run nbq status
-    uv run nbq status --json
+  ```bash
+  uv run nbq run --watch
+  ```
+
+  If a worker is already running, `nbq run` will no-op and print its PID:
+
+  ```bash
+  uv run nbq run
+  ```
+
+- Status (includes worker PID):
+
+  ```bash
+  uv run nbq status
+  uv run nbq status --json
+  ```
 
 - Controls:
-  - bash
-    uv run nbq cancel
-    uv run nbq kill --grace 5
-    uv run nbq abort --grace 5
+
+  ```bash
+  uv run nbq cancel
+  uv run nbq kill --grace 5
+  uv run nbq abort --grace 5
+  ```
 
 - Clear pending items:
-  - bash
-    uv run nbq clear --yes
+
+  ```bash
+  uv run nbq clear --yes
+  ```
 
 ## Tagging and enqueue rules
 
@@ -59,9 +79,9 @@ Commands:
 - `.ipynb` outputs are cleared on enqueue to keep inputs clean.
 - Original file paths are preserved in metadata.
 
-## Execution behavior
+- ## Execution behavior
 
-- Each run executes in a dedicated `output/<run-id>/` directory:
+- Each run executes in a dedicated `<run-id>/` directory directly under the session root:
   - `source.ext`: copied input
   - `input.ipynb`: `.ipynb` to execute (converted from `.py` if needed)
   - `executed.ipynb`: executed output
@@ -80,20 +100,22 @@ Commands:
 
 Default base directory is `./nbqueue` (override with `NBQ_HOME`):
 
-- nbqueue/<session-id>/
-  - queue/ — pending inputs (snapshots from enqueue)
-  - output/<run-id>/ — per-run outputs and logs
-  - logs/
-  - state.json
-  - lock.pid
-  - latest_run → output/<run-id>
+- `nbqueue/<session-id>/`
+  - `queue/` — pending inputs (snapshots from enqueue)
+  - `<run-id>/` — per-run outputs and logs directly under the session root
+  - `state.json`
+  - `lock.pid`
+  - `latest_run` → symlink to `<run-id>`
 
 Environment variables:
+
 - `NBQ_HOME`: override base directory (default `./nbqueue`)
 - `NBQ_DEFAULT_KERNEL`: kernel name for execution (default `python3`)
 
 ## Timeouts
 
 Set a per-cell timeout:
-- bash
-  uv run nbq run --timeout 600
+
+```bash
+uv run nbq run --timeout 600
+```

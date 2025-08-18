@@ -4,12 +4,6 @@ Run Jupyter notebooks one-by-one with a simple queue and clear results.
 
 `nbqueue` gives you a tiny, reliable queue. You add notebooks (or percent-formatted .py scripts), and a single worker executes them in order.
 
-## Why this exists (in plain English)
-
-- Run complex scripts and notebooks sequentially in a queue.
-- make changes and iteratively, add items to the queue while you wait for processing to complete.
-- scripts in jupytext format are converted to .ipynb. output cells are saved to record results along side code cells. 
-
 ## What you get
 
 - Single-worker execution (no overlapping runs)
@@ -17,6 +11,7 @@ Run Jupyter notebooks one-by-one with a simple queue and clear results.
 - Works with .ipynb and Jupytext percent scripts (.py)
 - Easy control: add, status, run, clear, cancel, kill, abort
 - Friendly CLI with Rich + Typer
+- Status includes the worker PID; terminating it stops the current run and empties the queue
 
 ## Quickstart (with uv)
 
@@ -38,9 +33,13 @@ uv run nbq status
 
 # Keep a worker running and handle new items as they arrive
 uv run nbq run --watch
+
+# If a worker is already running, nbq run will no-op and print its PID
+uv run nbq run
 ```
 
 Control the worker:
+
 ```bash
 # Finish current run then stop
 uv run nbq cancel
@@ -53,6 +52,7 @@ uv run nbq abort
 ```
 
 Useful flags:
+
 ```bash
 # Exit if no work arrives within 60s
 uv run nbq run --timeout 60
@@ -67,29 +67,32 @@ uv run nbq run --once
 - Execution → Papermill (kernel default: python3; override with NBQ_DEFAULT_KERNEL)
 - State is durable JSON on disk, updated atomically
 - One worker at a time enforced via a PID lock
+- If a worker is already active, `nbq run` warns and exits without starting another
 
 ## Where files go (default NBQ_HOME=./nbqueue)
 
-- nbqueue/<session-id>/state.json — queue state (queue, history, current, stop flag)
-- nbqueue/<session-id>/lock.pid — single-worker lock
-- nbqueue/<session-id>/output/<run-id>/
-  - source.ext — original snapshot (.py or .ipynb)
-  - input.ipynb — pre-execution
-  - executed.ipynb — post-execution
-  - run.log — stdout/stderr
-  - status.json — pid, times, result, etc.
-- nbqueue/<session-id>/latest_run → symlink to last run
+- `nbqueue/<session-id>/state.json` — queue state (queue, history, current, stop flag)
+- `nbqueue/<session-id>/lock.pid` — single-worker lock (PID of the worker)
+- `nbqueue/<session-id>/queue/` — snapshots of enqueued items
+- `nbqueue/<session-id>/<run-id>/` — per-run artifacts live directly under the session root
+	- `source.ext` — original snapshot (.py or .ipynb)
+	- `input.ipynb` — notebook to execute (converted from .py if needed)
+	- `executed.ipynb` — executed output
+	- `run.log` — stdout/stderr
+	- `status.json` — result metadata (success, returncode, error)
+- `nbqueue/<session-id>/latest_run` → symlink to the last run directory
 
 ## Configuration
 
-- NBQ_HOME — base directory (default: ./nbqueue)
-- NBQ_DEFAULT_KERNEL — Jupyter kernel (default: python3)
+- `NBQ_HOME` — base directory (default: ./nbqueue)
+- `NBQ_DEFAULT_KERNEL` — Jupyter kernel (default: python3)
 
 CLI command stays `nbq`; package name is `nbqueue`.
 
 ## Learn more
 
 Build and open the docs locally:
+
 ```bash
 mkdocs serve
 ```
