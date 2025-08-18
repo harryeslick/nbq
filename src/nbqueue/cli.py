@@ -11,6 +11,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from . import __version__
 from .ps import kill_with_grace
 from .state import (
     QueueItem,
@@ -31,6 +32,32 @@ from .worker import run_worker
 
 app = typer.Typer(no_args_is_help=True)
 console = Console()
+
+# ASCII banner for nbqueue (barbequeue pun)
+NBQ_BANNER = r"""
+               ____
+    _   _ ___ / __ \                       
+ | \ | | __ )| |  | |_   _  ___ _   _  ___ 
+ |  \| |  _ \| |  | | | | |/ _ \ | | |/ _ \
+ | |\  | |_) | |__| | |_| |  __/ |_| |  __/
+ |_| \_|____(_)___\_\\__,_|\___|\__,_|\___|
+
+                ( ( (      ) ) )      barbequeue vibes
+                 ) ) )    ( ( (       one hot run at a time
+             .-~~~~~~~~~~~~~~~~-.   
+            /  queue it and grill  \ 
+            \______________________/ 
+"""
+
+
+def _print_banner(with_version: bool = True) -> None:
+    try:
+        console.print(NBQ_BANNER, style="bold red")
+        if with_version:
+            console.print(f"nbq v{__version__}", style="bold yellow")
+    except (OSError, RuntimeError):
+        pass
+
 
 def _session_for_reporting() -> Optional[Session]:
     return active_session() or latest_session()
@@ -91,11 +118,16 @@ def cmd_status(json_out: bool = typer.Option(False, "--json", help="Output machi
     st = load_state(sess)
     worker_pid = read_lock_pid(sess)
     if json_out:
-        console.print_json(json.dumps({"session": str(sess.root), "worker_pid": worker_pid, **st.to_dict()}))
+        console.print_json(
+            json.dumps({"version": __version__, "session": str(sess.root), "worker_pid": worker_pid, **st.to_dict()})
+        )
         return
 
+    # Pretty banner for human-readable status
+    _print_banner(with_version=True)
+
     subtitle = f"worker pid: {worker_pid}" if worker_pid else "no worker running"
-    table = Table(title=f"nbq status – session {sess.root.name}", caption=subtitle, show_lines=False)
+    table = Table(title=f"nbq v{__version__} status – session {sess.root.name}", caption=subtitle, show_lines=False)
     table.add_column("ID", no_wrap=True)
     table.add_column("Notebook", no_wrap=True)
     table.add_column("Tag", no_wrap=True)
@@ -243,6 +275,12 @@ def cmd_abort(
     console.print("[red]Abort requested.[/red] Current killed (if running), queue cleared, worker will stop.")
 
 def main() -> None:
+    # If invoked without subcommand, print banner + version before help
+    try:
+        if len(sys.argv) == 1:
+            _print_banner(with_version=True)
+    except (OSError, RuntimeError):
+        pass
     app()
 
 if __name__ == "__main__":
